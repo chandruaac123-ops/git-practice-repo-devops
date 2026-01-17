@@ -5,7 +5,7 @@ metadata:
   name: deployment-knote-app
 spec:
   # 3 Pods should exist at all times.
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: knote
