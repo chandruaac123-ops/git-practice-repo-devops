@@ -2,22 +2,22 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   # Unique key of the Deployment instance
-  name: deployment-knote-app
+  name: deployment-httpd-app
 spec:
   # 3 Pods should exist at all times.
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: knote
+      app: httpd
   template:
     metadata:
       labels:
         # Apply this label to pods and default
         # the Deployment label selector to this value
-        app: knote
+        app: httpd
     spec:
       containers:
       - name: container2
         # Run this image
-        image: learnitguide/knotejs:1.0
+        image: httpd:latest
 
