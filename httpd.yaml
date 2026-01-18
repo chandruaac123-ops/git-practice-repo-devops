@@ -19,5 +19,5 @@ spec:
       containers:
       - name: container2
         # Run this image
-        image: httpd:latest
+        image: httpd${HTTPD_VERSION}
 
