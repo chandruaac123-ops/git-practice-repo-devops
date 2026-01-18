@@ -9,7 +9,18 @@ spec:
       restartPolicy: Never
       hostPID: true
       hostNetwork: true
-      serviceAccountName: default
+
+      nodeSelector:
+        kubernetes.io/hostname: k8s-master-node
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoSchedule"
+
       containers:
       - name: cleanup
         image: bitnami/kubectl:latest
@@ -20,8 +31,8 @@ spec:
         - -c
         - |
           echo "===== CLUSTER STATUS BEFORE CLEANUP ====="
-          kubectl get nodes || true
-          kubectl get pods -A || true
+          kubectl get nodes
+          kubectl get pods -A
 
           echo "===== DELETING ALL WORKLOADS ====="
           kubectl delete deploy --all -A || true
@@ -31,10 +42,6 @@ spec:
           kubectl delete statefulset --all -A || true
           kubectl delete job --all -A || true
           kubectl delete cronjob --all -A || true
-
-          echo "===== DRAINING ALL WORKER NODES ====="
-          kubectl drain k8s-worker-node-1 --ignore-daemonsets --delete-emptydir-data --force || true
-          kubectl drain k8s-worker-node-2 --ignore-daemonsets --delete-emptydir-data --force || true
 
           echo "===== CONTAINER & IMAGE CLEANUP ====="
           crictl ps -a || true
@@ -53,9 +60,11 @@ spec:
           lsof | grep deleted || true
 
           echo "===== CLUSTER CLEANUP COMPLETED ====="
+
         volumeMounts:
         - name: containerd
           mountPath: /var/lib/containerd
+
       volumes:
       - name: containerd
         hostPath:
