@@ -1,57 +1,63 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: node-disk-cleanup
+  name: full-cluster-cleanup
 spec:
-  ttlSecondsAfterFinished: 60   # Job complete ஆன 60 sec-கு பிறகு auto delete
+  ttlSecondsAfterFinished: 60
   template:
     spec:
       restartPolicy: Never
       hostPID: true
+      hostNetwork: true
+      serviceAccountName: default
       containers:
       - name: cleanup
-        image: alpine:latest
+        image: bitnami/kubectl:latest
         securityContext:
           privileged: true
         command:
         - /bin/sh
         - -c
         - |
-          echo "===== Pod usage ====="
-          kubectl top pods -A --sort-by=ephemeral-storage || true
+          echo "===== CLUSTER STATUS BEFORE CLEANUP ====="
+          kubectl get nodes || true
+          kubectl get pods -A || true
 
-          echo "===== CRI containers ====="
+          echo "===== DELETING ALL WORKLOADS ====="
+          kubectl delete deploy --all -A || true
+          kubectl delete pods --all -A || true
+          kubectl delete svc --all -A || true
+          kubectl delete ds --all -A || true
+          kubectl delete statefulset --all -A || true
+          kubectl delete job --all -A || true
+          kubectl delete cronjob --all -A || true
+
+          echo "===== DRAINING ALL WORKER NODES ====="
+          kubectl drain k8s-worker-node-1 --ignore-daemonsets --delete-emptydir-data --force || true
+          kubectl drain k8s-worker-node-2 --ignore-daemonsets --delete-emptydir-data --force || true
+
+          echo "===== CONTAINER & IMAGE CLEANUP ====="
           crictl ps -a || true
-
-          echo "===== CRI images ====="
+          crictl rm -a || true
           crictl images || true
-
-          echo "===== Containerd disk usage ====="
-          du -sh /var/lib/containerd/* || true
-
-          echo "===== Docker cleanup ====="
-          docker system df || true
-
-          echo "===== CRI image prune ====="
           crictl rmi --prune || true
 
-          echo "===== Journal cleanup ====="
+          echo "===== DISK CLEANUP ====="
+          du -sh /var/lib/containerd/* || true
+          rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/* || true
+
+          echo "===== JOURNAL CLEANUP ====="
           journalctl --vacuum-time=1d || true
 
-          echo "===== Deleted open files ====="
+          echo "===== DELETED BUT OPEN FILES ====="
           lsof | grep deleted || true
 
-          echo "===== Cleanup completed ====="
+          echo "===== CLUSTER CLEANUP COMPLETED ====="
         volumeMounts:
         - name: containerd
           mountPath: /var/lib/containerd
-        - name: dockersock
-          mountPath: /var/run/docker.sock
       volumes:
       - name: containerd
         hostPath:
           path: /var/lib/containerd
-      - name: dockersock
-        hostPath:
-          path: /var/run/docker.sock
 
