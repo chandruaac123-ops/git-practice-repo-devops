@@ -1,10 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # Unique key of the Deployment instance
   name: deployment-httpd-app
 spec:
-  # 3 Pods should exist at all times.
   replicas: 2
   selector:
     matchLabels:
@@ -12,12 +10,12 @@ spec:
   template:
     metadata:
       labels:
-        # Apply this label to pods and default
-        # the Deployment label selector to this value
         app: httpd
     spec:
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
       - name: container2
-        # Run this image
-        image: httpd${HTTPD_VERSION}
-
+        image: httpd:__HTTPD_VERSION__
