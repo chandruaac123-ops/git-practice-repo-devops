@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: full-cluster-cleanup
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      restartPolicy: Never
+      hostPID: true
+      hostNetwork: true
+
+      nodeSelector:
+        kubernetes.io/hostname: k8s-master-node
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+      containers:
+      - name: cleanup
+        image: bitnami/kubectl:latest
+        securityContext:
+          privileged: true
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "===== CLUSTER STATUS BEFORE CLEANUP ====="
+          kubectl get nodes
+          kubectl get pods -A
+
+          echo "===== DELETING ALL WORKLOADS ====="
+          kubectl delete deploy --all -A || true
+          kubectl delete pods --all -A || true
+          kubectl delete svc --all -A || true
+          kubectl delete ds --all -A || true
+          kubectl delete statefulset --all -A || true
+          kubectl delete job --all -A || true
+          kubectl delete cronjob --all -A || true
+
+          echo "===== CONTAINER & IMAGE CLEANUP ====="
+          crictl ps -a || true
+          crictl rm -a || true
+          crictl images || true
+          crictl rmi --prune || true
+
+          echo "===== DISK CLEANUP ====="
+          du -sh /var/lib/containerd/* || true
+          rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/* || true
+
+          echo "===== JOURNAL CLEANUP ====="
+          journalctl --vacuum-time=1d || true
+
+          echo "===== DELETED BUT OPEN FILES ====="
+          lsof | grep deleted || true
+
+          echo "===== CLUSTER CLEANUP COMPLETED ====="
+
+        volumeMounts:
+        - name: containerd
+          mountPath: /var/lib/containerd
+
+      volumes:
+      - name: containerd
+        hostPath:
+          path: /var/lib/containerd
+
